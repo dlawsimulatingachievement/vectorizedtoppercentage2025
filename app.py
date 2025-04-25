@@ -56,24 +56,25 @@ if st.button("Run Simulation"):
         st.markdown("---")
         st.subheader("🎉 Running Simulation...")
 
-        # ✅ Precompute fixed population once
         talent_pop = truncated_normal(50, 20, population)
         effort_pop = truncated_normal(50, 20, population)
+        base_contrib = (talent_pop * talent_weight) + (effort_pop * effort_weight)
 
-        base_contrib = (talent_pop * talent_weight) + (effort_pop * effort_weight)  # shape: (population,)
+        user_achievements = np.zeros(num_runs)
+        thresholds = np.zeros(num_runs)
 
-        user_luck = np.random.randint(0, 101, size=(num_runs, attempts))
-        user_achievements = np.sum(
-            (talent * talent_weight) + (effort * effort_weight) + (user_luck * luck_weight),
-            axis=1
-        )  # shape: (num_runs,)
+        for run in range(num_runs):
+            user_run_luck = np.random.randint(0, 101, size=attempts)
+            user_achievement = 0
+            pop_achievement = np.zeros(population)
 
-        population_achievements = np.zeros((num_runs, population))
-        for attempt in range(attempts):
-            luck = truncated_normal(50, 20, (num_runs, population))
-            population_achievements += base_contrib[np.newaxis, :] + (luck * luck_weight)
+            for attempt in range(attempts):
+                pop_luck = truncated_normal(50, 20, population)
+                pop_achievement += base_contrib + (pop_luck * luck_weight)
+                user_achievement += (talent * talent_weight) + (effort * effort_weight) + (user_run_luck[attempt] * luck_weight)
 
-        thresholds = np.percentile(population_achievements, 100 - competition_cutoff, axis=1)
+            user_achievements[run] = user_achievement
+            thresholds[run] = np.percentile(pop_achievement, 100 - competition_cutoff)
 
         if show_distributions:
             st.subheader("🔍 Input Distributions")
@@ -89,9 +90,9 @@ if st.button("Run Simulation"):
             ax2.set_title("Effort Distribution")
             st.pyplot(fig2)
 
-            first_luck = truncated_normal(50, 20, population)
+            sample_luck = truncated_normal(50, 20, population)
             fig3, ax3 = plt.subplots()
-            ax3.hist(first_luck, bins=bins, color='orange', edgecolor='black')
+            ax3.hist(sample_luck, bins=bins, color='orange', edgecolor='black')
             ax3.set_title("Luck Distribution (Sample)")
             st.pyplot(fig3)
 
