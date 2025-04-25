@@ -60,27 +60,20 @@ if st.button("Run Simulation"):
         talent_pop = truncated_normal(50, 20, population)
         effort_pop = truncated_normal(50, 20, population)
 
-        # ✅ Vectorized: Generate all luck data for population in advance
-        luck_array = np.array([
-            [truncated_normal(50, 20, population) for _ in range(attempts)]
-            for _ in range(num_runs)
-        ])  # shape: (num_runs, attempts, population)
-
-        # 🎯 Calculate population achievements
         base_contrib = (talent_pop * talent_weight) + (effort_pop * effort_weight)  # shape: (population,)
-        population_achievements = np.sum(
-            base_contrib[np.newaxis, np.newaxis, :] + luck_array * luck_weight,
-            axis=1  # sum across attempts
-        )  # shape: (num_runs, population)
 
-        thresholds = np.percentile(population_achievements, 100 - competition_cutoff, axis=1)  # shape: (num_runs,)
-
-        # 🎯 Calculate user achievement vectorized across runs
         user_luck = np.random.randint(0, 101, size=(num_runs, attempts))
         user_achievements = np.sum(
             (talent * talent_weight) + (effort * effort_weight) + (user_luck * luck_weight),
             axis=1
         )  # shape: (num_runs,)
+
+        population_achievements = np.zeros((num_runs, population))
+        for attempt in range(attempts):
+            luck = truncated_normal(50, 20, (num_runs, population))
+            population_achievements += base_contrib[np.newaxis, :] + (luck * luck_weight)
+
+        thresholds = np.percentile(population_achievements, 100 - competition_cutoff, axis=1)
 
         if show_distributions:
             st.subheader("🔍 Input Distributions")
@@ -96,12 +89,12 @@ if st.button("Run Simulation"):
             ax2.set_title("Effort Distribution")
             st.pyplot(fig2)
 
+            first_luck = truncated_normal(50, 20, population)
             fig3, ax3 = plt.subplots()
-            ax3.hist(luck_array[0, 0], bins=bins, color='orange', edgecolor='black')
-            ax3.set_title("Luck Distribution (1st Run, 1st Attempt)")
+            ax3.hist(first_luck, bins=bins, color='orange', edgecolor='black')
+            ax3.set_title("Luck Distribution (Sample)")
             st.pyplot(fig3)
 
-        # 🔄 Compare
         success_count = np.sum(user_achievements >= thresholds)
         chance = (success_count / num_runs) * 100
 
