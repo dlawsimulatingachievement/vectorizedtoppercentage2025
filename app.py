@@ -60,51 +60,52 @@ if st.button("Run Simulation"):
         talent_pop = truncated_normal(50, 20, population)
         effort_pop = truncated_normal(50, 20, population)
 
-        # ✅ Vectorized simulation
-        luck_all = np.random.randint(0, 101, size=(num_runs, attempts))
+        # ✅ Vectorized: Generate all luck data for population in advance
+        luck_array = np.array([
+            [truncated_normal(50, 20, population) for _ in range(attempts)]
+            for _ in range(num_runs)
+        ])  # shape: (num_runs, attempts, population)
+
+        # 🎯 Calculate population achievements
+        base_contrib = (talent_pop * talent_weight) + (effort_pop * effort_weight)  # shape: (population,)
+        population_achievements = np.sum(
+            base_contrib[np.newaxis, np.newaxis, :] + luck_array * luck_weight,
+            axis=1  # sum across attempts
+        )  # shape: (num_runs, population)
+
+        thresholds = np.percentile(population_achievements, 100 - competition_cutoff, axis=1)  # shape: (num_runs,)
+
+        # 🎯 Calculate user achievement vectorized across runs
+        user_luck = np.random.randint(0, 101, size=(num_runs, attempts))
         user_achievements = np.sum(
-            (talent * talent_weight)
-            + (effort * effort_weight)
-            + (luck_all * luck_weight), axis=1
-        )
+            (talent * talent_weight) + (effort * effort_weight) + (user_luck * luck_weight),
+            axis=1
+        )  # shape: (num_runs,)
 
-        # ✅ Calculate grand achievement for population once
-        grand_achievements = []
-        for run in range(num_runs):
-            luck = np.array([truncated_normal(50, 20, population) for _ in range(attempts)]).T
-            if show_distributions and run == 0:
-                st.subheader("🔍 Input Distributions")
-                bins = np.arange(0, 102) - 0.5
-                fig1, ax1 = plt.subplots()
-                ax1.hist(talent_pop, bins=bins, color='skyblue', edgecolor='black')
-                ax1.set_title("Talent Distribution")
-                st.pyplot(fig1)
-                fig2, ax2 = plt.subplots()
-                ax2.hist(effort_pop, bins=bins, color='lightgreen', edgecolor='black')
-                ax2.set_title("Effort Distribution")
-                st.pyplot(fig2)
-                fig3, ax3 = plt.subplots()
-                ax3.hist(luck[:, 0], bins=bins, color='orange', edgecolor='black')
-                ax3.set_title("Luck Distribution (1st Attempt)")
-                st.pyplot(fig3)
-            achievement = np.zeros(population)
-            for i in range(attempts):
-                achievement += (
-                    (talent_pop * talent_weight)
-                    + (effort_pop * effort_weight)
-                    + (luck[:, i] * luck_weight)
-                )
-            grand_achievements.append(achievement)
+        if show_distributions:
+            st.subheader("🔍 Input Distributions")
+            bins = np.arange(0, 102) - 0.5
 
-        grand_achievements = np.stack(grand_achievements)
-        thresholds = np.percentile(grand_achievements, 100 - competition_cutoff, axis=1)
+            fig1, ax1 = plt.subplots()
+            ax1.hist(talent_pop, bins=bins, color='skyblue', edgecolor='black')
+            ax1.set_title("Talent Distribution")
+            st.pyplot(fig1)
 
-        # 🔄 Compare each user achievement against thresholds
+            fig2, ax2 = plt.subplots()
+            ax2.hist(effort_pop, bins=bins, color='lightgreen', edgecolor='black')
+            ax2.set_title("Effort Distribution")
+            st.pyplot(fig2)
+
+            fig3, ax3 = plt.subplots()
+            ax3.hist(luck_array[0, 0], bins=bins, color='orange', edgecolor='black')
+            ax3.set_title("Luck Distribution (1st Run, 1st Attempt)")
+            st.pyplot(fig3)
+
+        # 🔄 Compare
         success_count = np.sum(user_achievements >= thresholds)
-
         chance = (success_count / num_runs) * 100
+
         st.subheader("📈 Results")
         st.write(f"You have a **{chance:.1f}% chance** of being in the **top {competition_cutoff}%**.")
     else:
         st.error("⚠️ Simulation cannot run: Weightings must sum to 1.0.")
-
